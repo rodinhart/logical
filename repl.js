@@ -1,3 +1,4 @@
+const fs = require("fs")
 const readline = require("readline")
 
 const compose = (f, g) => x => f(g(x))
@@ -69,6 +70,14 @@ const equal = (x, y) => {
 
   return x === y
 }
+
+// substitute
+const substitute = code => dict =>
+  code instanceof Array
+    ? map(term => substitute(term)(dict))(code)
+    : dict[code] !== undefined
+      ? dict[code]
+      : code
 
 const assert = (actual, expected) => {
   if (!equal(actual, expected)) {
@@ -245,7 +254,7 @@ const match = pat => (atoms, dicts) =>
     null
   )(atoms)
 
-const data = read(`
+let data = read(`
 (
   (child Pebbles Barney)
   (child Marty George)
@@ -367,23 +376,10 @@ core[">"] = args => (atoms, dicts) =>
   })(dicts)
 
 // rule
-// assert(
-//   evalǃ(read(`(alias ?z BuildKid)`))(data, empty),
-//   cons({ "?z": "Pebbles" }, null)
-// )
-
-// assert(
-//   evalǃ(read(`(merge () (1 2) (1 2))`))(data, empty),
-//   cons({ "??y": [1, [2, null]] }, null)
-// )
-
-// substitute
-const substitute = code => dict =>
-  code instanceof Array
-    ? map(term => substitute(term)(dict))(code)
-    : dict[code] !== undefined
-      ? dict[code]
-      : code
+assert(
+  evalǃ(read(`(alias ?z BuildKid)`))(data, empty),
+  cons({ "?z": "Pebbles" }, null)
+)
 
 // repl
 const rl = readline.createInterface({
@@ -394,7 +390,29 @@ const rl = readline.createInterface({
 const repl = () => {
   console.log()
   rl.question("spock>  ", s => {
-    if (s !== ".exit") {
+    if (s === ".orgvue") {
+      const raw = fs.readFileSync("DemoData.csv")
+      const rows = String(raw)
+        .split("\n")
+        .map(row =>
+          row
+            .split(",")
+            .map(x => x.replace(/\s/g, ""))
+            .map(s => (String(Number(s)) === s ? Number(s) : s))
+        )
+      const fields = rows[0]
+      rows.forEach(row =>
+        row.forEach(
+          (val, i) =>
+            (data = cons(cons(fields[i], cons(row[1], cons(val, null))), data))
+        )
+      )
+      console.log("LOADED")
+      repl()
+    } else if (s === ".data") {
+      console.log(prn(data))
+      repl()
+    } else if (s !== ".exit") {
       const code = read(s)
       limit = 5
       const result = evalǃ(code)(data, empty)
