@@ -193,21 +193,13 @@ const unify = pat => (atom, dict) => {
   return dict
 }
 
-let limit
 const match = pat => (atoms, dicts) =>
   fold(
     (r, atom) =>
       fold((r, dict) => {
         if (first(atom) === "rule") {
           const t = unify(pat)(nth(1)(atom), dict)
-          // console.log()
-          // console.log("PAT", prn(pat))
-          // console.log("DICT", prn(dict))
-          // console.log("ATOM", prn(atom))
-          // console.log("CONCL", prn(t))
           if (t === null) return r
-          // if (limit === 0) process.exit(0)
-          // limit -= 1
           if (!rest(rest(atom))) {
             return cons(
               filterKeys(k => k[0] !== "?" || k[1] !== "?")(
@@ -237,13 +229,6 @@ const match = pat => (atoms, dicts) =>
             u !== null
               ? map(d => mapValues(v => substitute(v)({ ...tt, ...d }))(t))(u)
               : null
-          // console.log()
-          // console.log("PAT", prn(pat))
-          // console.log("DICT", prn(dict))
-          // console.log("ATOM", prn(atom))
-          // console.log("CONCL", prn(t))
-          // console.log("RECUR", prn(u))
-          // console.log("UNIFY", prn(uu))
           return concat(r, uu)
         }
 
