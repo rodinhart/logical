@@ -3,6 +3,20 @@ const readline = require("readline")
 const compose = (f, g) => x => f(g(x))
 const concat = (a, b) => (a ? cons(first(a), concat(rest(a), b)) : b)
 const cons = (x, y) => [x, y]
+const filter = p => c =>
+  c
+    ? p(first(c))
+      ? cons(first(c), filter(p)(rest(c)))
+      : filter(p)(rest(c))
+    : null
+const filterKeys = p => xs => {
+  const r = {}
+  for (let k in xs) {
+    if (p(k)) r[k] = xs[k]
+  }
+
+  return r
+}
 const first = c => c[0]
 const fold = (step, init) => c => {
   let r = init
@@ -67,6 +81,8 @@ const assert = (actual, expected) => {
 }
 
 const prn = x => {
+  if (x === null) return "()"
+
   if (x instanceof Array) {
     const r = []
     let c = x
@@ -76,9 +92,17 @@ const prn = x => {
     }
 
     return c === null ? `(${r.join(" ")})` : `(${r.join(" ")} . ${prn(c)})`
+  } else if (typeof x === "object") {
+    return (
+      "{" +
+      Object.entries(x)
+        .map(([k, v]) => `${k}: ${prn(v)}`)
+        .join(", ") +
+      "}"
+    )
   }
 
-  return x === null ? "()" : String(x)
+  return String(x)
 }
 
 // read
@@ -123,8 +147,12 @@ const unify = pat => (atom, dict) => {
   if (pat instanceof Array) {
     if (!(atom instanceof Array)) {
       if (!atom || atom[0] !== "?") return null
-      if (dict["?" + atom] !== undefined && !equal(dict["?" + atom], pat))
+      if (dict["?" + atom] !== undefined) {
+        const t = unify(dict["?" + atom])(pat, dict)
+        if (t !== null) return t
+
         return null
+      }
 
       return {
         ...dict,
@@ -156,16 +184,58 @@ const unify = pat => (atom, dict) => {
   return dict
 }
 
+let limit
 const match = pat => (atoms, dicts) =>
   fold(
     (r, atom) =>
       fold((r, dict) => {
         if (first(atom) === "rule") {
           const t = unify(pat)(nth(1)(atom), dict)
+          // console.log()
+          // console.log("PAT", prn(pat))
+          // console.log("DICT", prn(dict))
+          // console.log("ATOM", prn(atom))
+          // console.log("CONCL", prn(t))
           if (t === null) return r
-          if (!rest(rest(atom))) return cons(t, r)
-          const u = evalǃ(nth(2)(atom))(atoms, empty)
-          return concat(r, map(d => mapValues(v => d[v])(t))(u))
+          // if (limit === 0) process.exit(0)
+          // limit -= 1
+          if (!rest(rest(atom))) {
+            return cons(
+              filterKeys(k => k[0] !== "?" || k[1] !== "?")(
+                mapValues(
+                  v =>
+                    v && v[0] === "?" && t["?" + v] !== undefined
+                      ? t["?" + v]
+                      : v
+                )(t)
+              ),
+              r
+            )
+          }
+
+          const tt = (() => {
+            const r = {}
+            for (let k in t) {
+              if (k[0] === "?" && k[1] === "?") {
+                r[k.substr(1)] = t[k]
+              }
+            }
+
+            return r
+          })()
+          const u = evalǃ(substitute(nth(2)(atom))(tt))(atoms, empty)
+          const uu =
+            u !== null
+              ? map(d => mapValues(v => substitute(v)({ ...tt, ...d }))(t))(u)
+              : null
+          // console.log()
+          // console.log("PAT", prn(pat))
+          // console.log("DICT", prn(dict))
+          // console.log("ATOM", prn(atom))
+          // console.log("CONCL", prn(t))
+          // console.log("RECUR", prn(u))
+          // console.log("UNIFY", prn(uu))
+          return concat(r, uu)
         }
 
         const t = unify(pat)(atom, dict)
@@ -177,17 +247,19 @@ const match = pat => (atoms, dicts) =>
 
 const data = read(`
 (
-  (Pebbles child Barney)
-  (Marty child George)
-  (Marty job Time Traveller)
-  (Barney job Builder)
+  (child Pebbles Barney)
+  (child Marty George)
+  (job Marty Time Traveller)
+  (job Barney Builder)
   (rule
-    (?y alias BuildKid)
+    (alias ?y BuildKid)
     (and
-      (?x job Builder)
-      (?y child ?x)
+      (job ?x Builder)
+      (child ?y ?x)
     )
   )
+  (age Pebbles 2)
+  (age Marty 17)
 
   (rule
     (merge () ?y ?y)
@@ -196,73 +268,114 @@ const data = read(`
   (rule
     (merge ?y () ?y)
   )
+
+  (rule
+    (merge (?a . ?x) (?b . ?y) (?b . ?z))
+    (and
+      (merge (?a . ?x) ?y ?z)
+      (> ?a ?b)
+    )
+  )
+
+  (rule
+    (merge (?a . ?x) (?b . ?y) (?a . ?z))
+    (and
+      (merge ?x (?b . ?y) ?z)
+      (> ?b ?a)
+    )
+  )
 )
 `)
 
 assert(
-  match(read(`(Pebbles child ?x)`))(data, empty),
+  match(read(`(child Pebbles ?x)`))(data, empty),
   cons({ "?x": "Barney" }, null)
 )
 assert(
-  match(read(`(?x child Barney)`))(data, empty),
+  match(read(`(child ?x Barney)`))(data, empty),
   cons({ "?x": "Pebbles" }, null)
 )
-assert(match(read(`(Pebbles child Barney)`))(data, empty), empty)
-assert(match(read(`(Pebbles child Fred)`))(data, empty), null)
+assert(match(read(`(child Pebbles Barney)`))(data, empty), empty)
+assert(match(read(`(child Pebbles Fred)`))(data, empty), null)
 assert(
-  match(read(`(Marty job . ?x)`))(data, empty),
+  match(read(`(job Marty . ?x)`))(data, empty),
   cons({ "?x": ["Time", ["Traveller", null]] }, null)
 )
 assert(
-  match(read(`(Pebbles child ?x)`))(data, cons({ "?x": "Barney" }, null)),
+  match(read(`(child Pebbles ?x)`))(data, cons({ "?x": "Barney" }, null)),
   cons({ "?x": "Barney" }, null)
 )
 assert(
-  match(read(`(Pebbles child ?x)`))(data, cons({ "?x": "George" }, null)),
+  match(read(`(child Pebbles ?x)`))(data, cons({ "?x": "George" }, null)),
   null
 )
 
+assert(match(read(`(merge () (1 2) (1 2))`))(data, empty), empty)
+assert(
+  match(read(`(merge () (1 2) ?x)`))(data, empty),
+  cons({ "?x": [1, [2, null]] }, null)
+)
+assert(
+  match(read(`(merge () ?x (1 2))`))(data, empty),
+  cons({ "?x": [1, [2, null]] }, null)
+)
+assert(
+  match(read(`(merge () (?p . ?u) (1 2))`))(data, empty),
+  cons({ "?p": 1, "?u": [2, null] }, null)
+)
+
 // eval
+const core = {}
+
 const evalǃ = expr => {
-  if (expr instanceof Array) {
-    if (first(expr) === "and") {
-      return and(evalǃ(nth(1)(expr)), evalǃ(nth(2)(expr)))
-    } else if (first(expr) === "or") {
-      return or(evalǃ(nth(1)(expr)), evalǃ(nth(2)(expr)))
-    }
+  if (expr instanceof Array && core[first(expr)]) {
+    return core[first(expr)](rest(expr))
   }
 
   return match(expr)
 }
 
-assert(evalǃ(read(`(Pebbles child Barney)`))(data, empty), empty)
+assert(evalǃ(read(`(child Pebbles Barney)`))(data, empty), empty)
 
 // and
-const and = (a, b) => (atoms, dicts) => b(atoms, a(atoms, dicts))
+const and = clauses => (atoms, dicts) =>
+  fold((r, clause) => evalǃ(clause)(atoms, r), dicts)(clauses)
+core.and = and
 
 assert(
-  evalǃ(read(`(and (?x job Builder) (?y child ?x))`))(data, empty),
+  evalǃ(read(`(and (job ?x Builder) (child ?y ?x))`))(data, empty),
   cons({ "?x": "Barney", "?y": "Pebbles" }, null)
 )
 
 // or
-const or = (a, b) => (atoms, dicts) => concat(a(atoms, dicts), b(atoms, dicts))
+const or = clauses => (atoms, dicts) =>
+  fold((r, clause) => concat(r, evalǃ(clause)(atoms, dicts)), null)(clauses)
+core.or = or
 
 assert(
-  evalǃ(read(`(or (?x job Builder) (?x child Barney))`))(data, empty),
+  evalǃ(read(`(or (job ?x Builder) (child ?x Barney))`))(data, empty),
   cons({ "?x": "Barney" }, cons({ "?x": "Pebbles" }, null))
 )
 
-// rule
-assert(
-  evalǃ(read(`(?z alias BuildKid)`))(data, empty),
-  cons({ "?z": "Pebbles" }, null)
-)
+// >
+core[">"] = args => (atoms, dicts) =>
+  filter(dict => {
+    const a = dict[nth(0)(args)] || nth(0)(args)
+    const b = dict[nth(1)(args)] || nth(1)(args)
 
-assert(
-  evalǃ(read(`(merge () (1 2) (1 2))`))(data, empty),
-  cons({ "??y": [1, [2, null]] }, null)
-)
+    return a > b
+  })(dicts)
+
+// rule
+// assert(
+//   evalǃ(read(`(alias ?z BuildKid)`))(data, empty),
+//   cons({ "?z": "Pebbles" }, null)
+// )
+
+// assert(
+//   evalǃ(read(`(merge () (1 2) (1 2))`))(data, empty),
+//   cons({ "??y": [1, [2, null]] }, null)
+// )
 
 // substitute
 const substitute = code => dict =>
@@ -283,6 +396,7 @@ const repl = () => {
   rl.question("spock>  ", s => {
     if (s !== ".exit") {
       const code = read(s)
+      limit = 5
       const result = evalǃ(code)(data, empty)
       const t = map(substitute(code))(result)
       if (t) console.log(toArray(map(prn)(t)).join("\n"))
