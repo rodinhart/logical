@@ -1,5 +1,6 @@
 import { egal, thread, type } from "./lang.js"
-import { filter, flatmap, map } from "./list.js"
+import { prn } from "./lisp.js"
+import { car, cdr, cons, filter, flatmap, isEmpty, map, nil } from "./list.js"
 
 // extend a dict
 const extend = (varr, val, dict) => {
@@ -55,37 +56,57 @@ const gen = (() => {
 
 const n = (x) => Symbol.keyFor(x)
 
+let debug = 30
+const counts = new Map()
+
 // query the db
 export const query = (pattern, db, dicts = [{}, null]) => {
   if (!dicts) {
     return null
   }
 
-  if (pattern[0] === Symbol.for("AND")) {
-    const t = query(pattern[1][0], db, dicts)
+  if (debug > 0) {
+    debug--
+    const hash = prn(pattern)
+    if (!hash.includes("AND")) {
+      if (!counts.has(hash)) {
+        counts.set(hash, 1)
+      } else {
+        counts.set(hash, counts.get(hash) + 1)
+      }
 
-    return query(pattern[1][1][0], db, t)
+      console.log(prn(cons(pattern, dicts)))
+    }
+  } else if (debug !== -1) {
+    // console.log(counts)
+    throw new Error(`LOOP!`)
+  }
+
+  if (pattern[0] === Symbol.for("AND")) {
+    const t = query(car(cdr(pattern)), db, dicts)
+
+    return query(car(cdr(cdr(pattern))), db, t)
   }
 
   const hostOps = {
     [Symbol.for("<")]: (t) =>
-      Number.isFinite(t[1][0]) &&
-      Number.isFinite(t[1][1][0]) &&
-      t[1][0] < t[1][1][0],
+      Number.isFinite(car(cdr(t))) &&
+      Number.isFinite(car(cdr(cdr(t)))) &&
+      car(cdr(t)) < car(cdr(cdr(t))),
 
-    [Symbol.for("number?")]: (t) => Number.isFinite(t[1][0]),
+    [Symbol.for("number?")]: (t) => Number.isFinite(car(cdr(t))),
 
-    [Symbol.for("symbol?")]: (t) => typeof t[1][0] === "symbol",
+    [Symbol.for("symbol?")]: (t) => typeof car(cdr(t)) === "symbol",
   }
 
-  if (hostOps[pattern[0]]) {
+  if (hostOps[car(pattern)]) {
     return thread(
       dicts,
 
       map((dict) => {
         const t = resolve(pattern, dict)
 
-        return hostOps[pattern[0]](t) ? dict : null
+        return hostOps[car(pattern)](t) ? dict : null
       }),
 
       filter((x) => x !== null)
@@ -96,17 +117,29 @@ export const query = (pattern, db, dicts = [{}, null]) => {
     db,
 
     flatmap((entry) => {
-      if (entry[0] === Symbol.for("RULE")) {
+      if (car(entry) === Symbol.for("RULE")) {
         const genned = resolve(entry, {
           "??a": gen(),
           "??x": gen(),
           "??b": gen(),
           "??y": gen(),
           "??z": gen(),
+          "??env": gen(),
+          "??val": gen(),
+          "??params": gen(),
+          "??body": gen(),
+          "??rator": gen(),
+          "??rand": gen(),
+          "??env2": gen(),
+          "??new-env": gen(),
+          "??res": gen(),
+          "??key": gen(),
+          "??map": gen(),
+          "??rest": gen(),
         })
 
-        const head = genned[1][0]
-        const body = genned[1][1]?.[0]
+        const head = car(cdr(genned))
+        const body = isEmpty(cdr(cdr(genned))) ? nil : car(cdr(cdr(genned)))
 
         const matchRule = unify(head, pattern, {})
         if (!matchRule) {
@@ -114,7 +147,7 @@ export const query = (pattern, db, dicts = [{}, null]) => {
         }
 
         const subs = !body
-          ? [matchRule, null]
+          ? cons(matchRule, nil)
           : query(resolve(body, matchRule), db)
 
         return thread(
@@ -164,9 +197,9 @@ export const unify = (pattern, entry, dict) => {
   }
 
   if (type(pattern) === type(entry) && type(pattern) === "Array") {
-    const r = unify(pattern[0], entry[0], dict)
+    const r = unify(car(pattern), car(entry), dict)
 
-    return r !== null ? unify(pattern[1], entry[1], r) : null
+    return r !== null ? unify(cdr(pattern), cdr(entry), r) : null
   }
 
   return null

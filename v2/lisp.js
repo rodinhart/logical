@@ -1,4 +1,5 @@
 import { test, type } from "./lang.js"
+import { car, cdr, cons, nil } from "./list.js"
 
 // lisp to string
 export const prn = (x) => {
@@ -7,10 +8,10 @@ export const prn = (x) => {
   if (t === "Array") {
     const r = []
     let c = x
-    while (c !== null) {
+    while (c !== nil) {
       if (type(c) === "Array") {
-        r.push(c[0])
-        c = c[1]
+        r.push(car(c))
+        c = cdr(c)
       } else {
         r.push(Symbol.for("."))
         r.push(c)
@@ -69,12 +70,12 @@ export const read = (s) => {
 
     if (s[i] === "(") {
       i++
-      const r = [null, null]
+      const r = cons(nil, nil)
       let c = r
       ws()
       while (i < s.length && s[i] !== ")" && s[i] !== ".") {
-        c[1] = [exp(), null]
-        c = c[1]
+        c[1] = cons(exp(), nil)
+        c = cdr(c)
         ws()
       }
 
@@ -88,7 +89,7 @@ export const read = (s) => {
         throw new Error(`Expected closing ) but found ${s[i - 1] ?? "EOF"}`)
       }
 
-      return r[1]
+      return cdr(r)
     }
 
     if (s[i] === '"') {

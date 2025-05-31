@@ -1,24 +1,40 @@
 // append two lists
 export const append = (xs, ys) =>
-  !Array.isArray(xs) ? ys : [xs[0], append(xs[1], ys)]
+  isEmpty(xs) ? ys : cons(xs[0], () => append(xs[1], ys))
+
+export const car = (xs) => xs[0]
+
+export const cdr = (xs) => {
+  if (typeof xs[1] === "function") {
+    xs[1] = xs[1]()
+  }
+
+  return xs[1]
+}
+
+export const cons = (x, y) => [x, y]
 
 // filter a list
 export const filter = (p) => (xs) =>
-  !Array.isArray(xs)
-    ? null
-    : p(xs[0])
-    ? [xs[0], filter(p)(xs[1])]
-    : filter(p)(xs[1])
+  isEmpty(xs)
+    ? nil
+    : p(car(xs))
+    ? cons(car(xs), () => filter(p)(cdr(xs)))
+    : filter(p)(cdr(xs))
 
 // flatmap over list
 export const flatmap = (f) => (xs) =>
-  !Array.isArray(xs) ? null : append(f(xs[0]), flatmap(f)(xs[1]))
+  isEmpty(xs) ? nil : append(f(car(xs)), flatmap(f)(cdr(xs)))
+
+export const isEmpty = (xs) => !Array.isArray(xs)
+
+export const length = (xs) => (isEmpty(xs) ? 0 : 1 + length(cdr(xs)))
 
 // array to linked list
 export const list = (xs) => {
-  let r = null
+  let r = nil
   for (let i = xs.length - 1; i >= 0; i--) {
-    r = [xs[i], r]
+    r = cons(xs[i], r)
   }
 
   return r
@@ -26,7 +42,9 @@ export const list = (xs) => {
 
 // map over list
 export const map = (f) => (xs) =>
-  !Array.isArray(xs) ? null : [f(xs[0]), map(f)(xs[1])]
+  isEmpty(xs) ? nil : cons(f(car(xs)), () => map(f)(cdr(xs)))
+
+export const nil = null
 
 export const take = (n) => (xs) =>
-  n > 0 && Array.isArray(xs) ? [xs[0], take(n - 1)(xs[1])] : null
+  n > 0 && !isEmpty(xs) ? cons(car(xs), take(n - 1)(cdr(xs))) : nil
