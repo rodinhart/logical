@@ -1,6 +1,6 @@
 // append two lists
 export const append = (xs, ys) =>
-  isEmpty(xs) ? ys : cons(xs[0], () => append(xs[1], ys))
+  isEmpty(xs) ? ys : cons(xs[0], append(xs[1], ys))
 
 export const car = (xs) => xs[0]
 
@@ -42,7 +42,7 @@ export const list = (xs) => {
 
 // map over list
 export const map = (f) => (xs) =>
-  isEmpty(xs) ? nil : cons(f(car(xs)), () => map(f)(cdr(xs)))
+  isEmpty(xs) ? nil : cons(f(car(xs)), map(f)(cdr(xs)))
 
 export const nil = null
 

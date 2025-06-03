@@ -1,3 +1,5 @@
+import { car, cdr } from "./list.js"
+
 // value equality
 export const egal = (a, b) => {
   if (type(a) !== type(b)) {
@@ -5,11 +7,11 @@ export const egal = (a, b) => {
   }
 
   if (type(a) === "Array") {
-    if (!egal(a[0], b[0])) {
+    if (!egal(car(a), car(b))) {
       return false
     }
 
-    return egal(a[1], b[1])
+    return egal(cdr(a), cdr(b))
   }
 
   if (type(a) === "Object") {

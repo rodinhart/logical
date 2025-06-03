@@ -27,14 +27,14 @@ const extend = (varr, val, dict) => {
     }
 
     if (type(exp) === "Array") {
-      return depends(exp[0]) || depends(exp[1])
+      return depends(car(exp)) || depends(cdr(exp))
     }
 
     return false
   }
 
   if (depends(val)) {
-    // console.log("CIRCULAR", val)
+    console.log("CIRCULAR", val)
 
     return null
   }
@@ -51,20 +51,16 @@ const isVar = (x) => type(x) === "Symbol" && Symbol.keyFor(x)[0] === "?"
 const gen = (() => {
   let i = 1
 
-  return () => Symbol.for(`??G${i++}`)
+  return (prefix = "") => Symbol.for(`??${prefix}G${i++}`)
 })()
 
 const n = (x) => Symbol.keyFor(x)
 
-let debug = 30
+let debug = -1
 const counts = new Map()
 
 // query the db
 export const query = (pattern, db, dicts = [{}, null]) => {
-  if (!dicts) {
-    return null
-  }
-
   if (debug > 0) {
     debug--
     const hash = prn(pattern)
@@ -82,6 +78,10 @@ export const query = (pattern, db, dicts = [{}, null]) => {
     throw new Error(`LOOP!`)
   }
 
+  if (!dicts) {
+    return null
+  }
+
   if (pattern[0] === Symbol.for("AND")) {
     const t = query(car(cdr(pattern)), db, dicts)
 
@@ -96,7 +96,8 @@ export const query = (pattern, db, dicts = [{}, null]) => {
 
     [Symbol.for("number?")]: (t) => Number.isFinite(car(cdr(t))),
 
-    [Symbol.for("symbol?")]: (t) => typeof car(cdr(t)) === "symbol",
+    [Symbol.for("symbol?")]: (t) =>
+      typeof car(cdr(t)) === "symbol" && !isVar(car(cdr(t))),
   }
 
   if (hostOps[car(pattern)]) {
@@ -119,23 +120,24 @@ export const query = (pattern, db, dicts = [{}, null]) => {
     flatmap((entry) => {
       if (car(entry) === Symbol.for("RULE")) {
         const genned = resolve(entry, {
-          "??a": gen(),
-          "??x": gen(),
-          "??b": gen(),
-          "??y": gen(),
-          "??z": gen(),
-          "??env": gen(),
-          "??val": gen(),
-          "??params": gen(),
-          "??body": gen(),
-          "??rator": gen(),
-          "??rand": gen(),
-          "??env2": gen(),
-          "??new-env": gen(),
-          "??res": gen(),
-          "??key": gen(),
-          "??map": gen(),
-          "??rest": gen(),
+          "??a": gen("a-"),
+          "??x": gen("x-"),
+          "??b": gen("b-"),
+          "??y": gen("y-"),
+          "??z": gen("z-"),
+          "??env": gen("env-"),
+          "??val": gen("val-"),
+          "??param": gen("param-"),
+          "??params": gen("params-"),
+          "??body": gen("body-"),
+          "??rator": gen("rator-"),
+          "??rand": gen("rand-"),
+          "??env2": gen("env2-"),
+          "??new-env": gen("new-env-"),
+          "??res": gen("res-"),
+          "??key": gen("key-"),
+          "??map": gen("map-"),
+          "??rest": gen("rest-"),
         })
 
         const head = car(cdr(genned))
@@ -176,7 +178,7 @@ export const resolve = (pattern, dict) => {
   }
 
   if (type(pattern) === "Array") {
-    return [resolve(pattern[0], dict), resolve(pattern[1], dict)]
+    return [resolve(car(pattern), dict), resolve(cdr(pattern), dict)]
   }
 
   return pattern
