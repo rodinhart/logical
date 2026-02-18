@@ -20,6 +20,14 @@ export const egal = (a, b) => {
     return Object.entries(a).every(([key, val]) => egal(val, b[key]))
   }
 
+  if (type(a) === "Set") {
+    if (a.size !== b.size) {
+      return false
+    }
+
+    return [...a].every((e) => b.has(e))
+  }
+
   return a === b
 }
 
@@ -56,3 +64,6 @@ test(() => egal([1, 2, 3], [1, 2, 4]), false)
 
 test(() => egal({ a: 1, b: 2 }, { a: 1, b: 2 }), true)
 test(() => egal({ a: 1, b: 2 }, { a: 1, b: 3 }), false)
+
+test(() => egal(new Set([1, 2]), new Set([2, 1])), true)
+test(() => egal(new Set([1, 2]), new Set([2, 3])), false)

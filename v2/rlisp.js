@@ -73,7 +73,7 @@ const collectVars = (x) => {
 const gen = (() => {
   let i = 1
 
-  return (prefix = "") => Symbol.for(`??${prefix}G${i++}`)
+  return (prefix = "") => Symbol.for(`?${prefix}G${i++}`)
 })()
 
 const n = (x) => Symbol.keyFor(x)
@@ -120,8 +120,14 @@ export const query = (pattern, db, dicts = [{}, null]) => {
     db,
 
     flatmap((entry) => {
-      const head = car(entry)
-      const body = cdr(entry)
+      const fresh = resolve(
+        entry,
+        Object.fromEntries(
+          [...collectVars(car(entry))].map((varr) => [varr, gen()]),
+        ),
+      )
+      const head = car(fresh)
+      const body = cdr(fresh)
 
       const matchRule = unify(head, pattern, {})
       if (!matchRule) {
@@ -190,13 +196,10 @@ export const unify = (pattern, entry, dict) => {
 // tests
 
 // collect vars
-test(() => [...collectVars(r`?x`)].sort(), ["?x"])
-test(() => [...collectVars(r`(foo bar)`)].sort(), [])
-test(() => [...collectVars(r`(?a ?b ?a . ?c)`)].sort(), ["?a", "?b", "?c"])
-test(
-  () => [...collectVars(r`((?x . ?y) (?z) . ?x)`)].sort(),
-  ["?x", "?y", "?z"],
-)
+test(() => collectVars(r`?x`), new Set(["?x"]))
+test(() => collectVars(r`(foo bar)`), new Set())
+test(() => collectVars(r`(?a ?b ?a . ?c)`), new Set(["?a", "?b", "?c"]))
+test(() => collectVars(r`((?x . ?y) (?z) . ?x)`), new Set(["?x", "?y", "?z"]))
 
 // resolve
 test(
@@ -350,16 +353,16 @@ db = read(`
 `)
 
 test(() => query(r`(merge () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
-// test(() => query(r`(merge () ?r (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+test(() => query(r`(merge () ?r (1 2))`, db), [{ "?r": r`(1 2)` }, null])
 
-// test(() => query(r`(merge ?r () (1 2))`, db), [{ "?r": r`(1 2)` }, null])
-// test(() => query(r`(merge (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(() => query(r`(merge ?r () (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+test(() => query(r`(merge (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
 
-// test(() => query(r`(merge (1) (2 3) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
-// test(() => query(r`(merge (1 2) (3 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+test(() => query(r`(merge (1) (2 3) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
+test(() => query(r`(merge (1 2) (3 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
 
-// test(() => query(r`(merge (1 3) (2) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
-// test(() => query(r`(merge (1 3) (2 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+test(() => query(r`(merge (1 3) (2) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
+test(() => query(r`(merge (1 3) (2 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
 
-// test(() => query(r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
-// test(() => query(r`(merge (1 3) ?r (1 2 3 4))`, db), [{ "?r": r`(2 4)` }, null])
+test(() => query(r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
+test(() => query(r`(merge (1 3) ?r (1 2 3 4))`, db), [{ "?r": r`(2 4)` }, null])
