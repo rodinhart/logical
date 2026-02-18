@@ -366,3 +366,48 @@ test(() => query(r`(merge (1 3) (2 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
 
 test(() => query(r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
 test(() => query(r`(merge (1 3) ?r (1 2 3 4))`, db), [{ "?r": r`(2 4)` }, null])
+
+// dict
+
+db = r`
+(
+  (
+    (get (?key ?val . ?rest) ?key ?val))
+
+  (
+    (get (?y ?z . ?rest) ?key ?val)
+    (get ?rest ?key ?val))
+
+  ((set ?map ?key ?val (?key ?val . ?map)))
+)`
+
+test(() => query(r`(get (a 2 b 3 a 5) b ?r)`, db), [{ "?r": 3 }, null])
+test(() => query(r`(get (a 2 b 3 a 5) d ?r)`, db), null)
+test(
+  () => query(r`(get (a 2 b 3 a 5) a ?r)`, db),
+  [{ "?r": 2 }, [{ "?r": 5 }, null]],
+)
+test(() => query(r`(get (a 2 b 3 a 5) ?key 3)`, db), [{ "?key": r`b` }, null])
+
+test(
+  () => query(r`(set (b 3 c 5) a 2 ?r)`, db),
+  [{ "?r": r`(a 2 b 3 c 5)` }, null],
+)
+
+test(
+  () => query(r`(set (b 3 c 5) c 2 ?r)`, db),
+  [{ "?r": r`(c 2 b 3 c 5)` }, null],
+)
+
+// append
+
+db = `(
+  (
+    (append () ?y ?y))
+
+  (
+    (append (?a . ?x) ?y (?a . ?z))
+    (append ?x ?y ?z))
+)`
+
+// todo write tests for append
