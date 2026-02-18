@@ -1,5 +1,3 @@
-import { car, cdr } from "./list.js"
-
 // value equality
 export const egal = (a, b) => {
   if (type(a) !== type(b)) {
@@ -7,11 +5,11 @@ export const egal = (a, b) => {
   }
 
   if (type(a) === "Array") {
-    if (!egal(car(a), car(b))) {
+    if (a.length !== b.length) {
       return false
     }
 
-    return egal(cdr(a), cdr(b))
+    return a.every((x, i) => egal(x, b[i]))
   }
 
   if (type(a) === "Object") {
@@ -32,13 +30,29 @@ export const test = (script, expected) => {
     console.warn(expected, actual)
     throw new Error(
       `Test failed:\n${script} \nexpected:\n${test.prn(
-        expected
-      )}\nbut found:\n${test.prn(actual)}`
+        expected,
+      )}\nbut found:\n${test.prn(actual)}`,
     )
   }
 }
 
+test.prn = (x) => x
+
 export const thread = (x, ...fns) => fns.reduce((r, fn) => fn(r), x)
 
 export const type = (a) =>
-  a === null ? "Null" : a?.constructor?.name ?? "Undefined"
+  a === null ? "Null" : (a?.constructor?.name ?? "Undefined")
+
+// tests
+
+test(() => egal(2, 2), true)
+test(() => egal(2, 3), false)
+
+test(() => egal("hello", "hello"), true)
+test(() => egal("hello", "world"), false)
+
+test(() => egal([1, 2, 3], [1, 2, 3]), true)
+test(() => egal([1, 2, 3], [1, 2, 4]), false)
+
+test(() => egal({ a: 1, b: 2 }, { a: 1, b: 2 }), true)
+test(() => egal({ a: 1, b: 2 }, { a: 1, b: 3 }), false)

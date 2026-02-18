@@ -1,6 +1,16 @@
-import { egal, thread, type } from "./lang.js"
-import { prn } from "./lisp.js"
-import { car, cdr, cons, filter, flatmap, isEmpty, map, nil } from "./list.js"
+import { egal, test, thread, type } from "./lang.js"
+import { prn, r, read } from "./lisp.js"
+import {
+  car,
+  cdr,
+  cons,
+  filter,
+  flatmap,
+  isEmpty,
+  map,
+  nil,
+  reduce,
+} from "./list.js"
 
 // extend a dict
 const extend = (varr, val, dict) => {
@@ -48,6 +58,18 @@ const extend = (varr, val, dict) => {
 // test whether value is a var
 const isVar = (x) => type(x) === "Symbol" && Symbol.keyFor(x)[0] === "?"
 
+const collectVars = (x) => {
+  if (isVar(x)) {
+    return new Set([Symbol.keyFor(x)])
+  }
+
+  if (type(x) === "Array") {
+    return new Set([...collectVars(car(x)), ...collectVars(cdr(x))])
+  }
+
+  return new Set()
+}
+
 const gen = (() => {
   let i = 1
 
@@ -56,28 +78,8 @@ const gen = (() => {
 
 const n = (x) => Symbol.keyFor(x)
 
-let debug = -1
-const counts = new Map()
-
 // query the db
 export const query = (pattern, db, dicts = [{}, null]) => {
-  if (debug > 0) {
-    debug--
-    const hash = prn(pattern)
-    if (!hash.includes("AND")) {
-      if (!counts.has(hash)) {
-        counts.set(hash, 1)
-      } else {
-        counts.set(hash, counts.get(hash) + 1)
-      }
-
-      console.log(prn(cons(pattern, dicts)))
-    }
-  } else if (debug !== -1) {
-    // console.log(counts)
-    throw new Error(`LOOP!`)
-  }
-
   if (!dicts) {
     return null
   }
@@ -110,7 +112,7 @@ export const query = (pattern, db, dicts = [{}, null]) => {
         return hostOps[car(pattern)](t) ? dict : null
       }),
 
-      filter((x) => x !== null)
+      filter((x) => x !== null),
     )
   }
 
@@ -118,56 +120,34 @@ export const query = (pattern, db, dicts = [{}, null]) => {
     db,
 
     flatmap((entry) => {
-      if (car(entry) === Symbol.for("RULE")) {
-        const genned = resolve(entry, {
-          "??a": gen("a-"),
-          "??x": gen("x-"),
-          "??b": gen("b-"),
-          "??y": gen("y-"),
-          "??z": gen("z-"),
-          "??env": gen("env-"),
-          "??val": gen("val-"),
-          "??param": gen("param-"),
-          "??params": gen("params-"),
-          "??body": gen("body-"),
-          "??rator": gen("rator-"),
-          "??rand": gen("rand-"),
-          "??env2": gen("env2-"),
-          "??new-env": gen("new-env-"),
-          "??res": gen("res-"),
-          "??key": gen("key-"),
-          "??map": gen("map-"),
-          "??rest": gen("rest-"),
-        })
+      const head = car(entry)
+      const body = cdr(entry)
 
-        const head = car(cdr(genned))
-        const body = isEmpty(cdr(cdr(genned))) ? nil : car(cdr(cdr(genned)))
-
-        const matchRule = unify(head, pattern, {})
-        if (!matchRule) {
-          return null
-        }
-
-        const subs = !body
-          ? cons(matchRule, nil)
-          : query(resolve(body, matchRule), db)
-
-        return thread(
-          subs,
-
-          flatmap((sub) => {
-            const headP = resolve(head, matchRule)
-            const resolved = resolve(headP, sub)
-
-            return map((dict) => unify(pattern, resolved, dict))(dicts)
-          })
-        )
+      const matchRule = unify(head, pattern, {})
+      if (!matchRule) {
+        return null
       }
 
-      return map((dict) => unify(pattern, entry, dict))(dicts)
+      const subs = isEmpty(body)
+        ? cons(matchRule, nil)
+        : reduce(
+            (r, clause) => query(clause, db, r),
+            [{}, nil],
+          )(resolve(body, matchRule))
+
+      return thread(
+        subs,
+
+        flatmap((sub) => {
+          const headP = resolve(head, matchRule)
+          const resolved = resolve(headP, sub)
+
+          return map((dict) => unify(pattern, resolved, dict))(dicts)
+        }),
+      )
     }),
 
-    filter((x) => x !== null)
+    filter((x) => x !== null),
   )
 }
 
@@ -206,3 +186,180 @@ export const unify = (pattern, entry, dict) => {
 
   return null
 }
+
+// tests
+
+// collect vars
+test(() => [...collectVars(r`?x`)].sort(), ["?x"])
+test(() => [...collectVars(r`(foo bar)`)].sort(), [])
+test(() => [...collectVars(r`(?a ?b ?a . ?c)`)].sort(), ["?a", "?b", "?c"])
+test(
+  () => [...collectVars(r`((?x . ?y) (?z) . ?x)`)].sort(),
+  ["?x", "?y", "?z"],
+)
+
+// resolve
+test(
+  () =>
+    resolve(r`(?a ?b ?a . ?c)`, {
+      "?a": r`1`,
+      "?b": r`2`,
+      "?c": r`(3 4)`,
+    }),
+  r`(1 2 1 3 4)`,
+)
+
+test(() => resolve(r`?a`, { "?a": r`?b`, "?b": r`42` }), r`42`)
+test(() => resolve(r`?x`, {}), r`?x`)
+test(() => resolve(r`42`, { "?x": r`1` }), r`42`)
+test(() => resolve(r`(?a ?b)`, { "?a": r`1` }), r`(1 ?b)`)
+test(() => resolve(r`?a`, { "?a": r`?b` }), r`?b`)
+test(
+  () =>
+    resolve(r`(?a (?b . ?c) . ?d)`, {
+      "?a": r`1`,
+      "?b": r`2`,
+      "?c": r`(3)`,
+      "?d": r`(4 5)`,
+    }),
+  r`(1 (2 3) 4 5)`,
+)
+test(() => resolve(r`(())`, {}), r`(())`)
+
+// unify
+test(() => unify(r`?x`, r`42`, {}), { "?x": r`42` })
+test(() => unify(r`?x`, r`42`, { "?y": r`20` }), { "?y": r`20`, "?x": r`42` })
+test(() => unify(r`?x`, r`42`, { "?x": r`20` }), null)
+test(() => unify(r`(?x ?y ?x)`, r`(2 3 2)`, {}), { "?x": r`2`, "?y": r`3` })
+test(() => unify(r`(?x ?y ?x)`, r`(2 3 3)`, { "?x": r`2`, "?y": r`3` }), null)
+
+test(() => unify(r`(42 ?x)`, r`(??y ??y)`, {}), { "?x": r`42`, "??y": r`42` })
+test(() => unify(r`(?x 42)`, r`(??y ??y)`, {}), { "?x": r`??y`, "??y": r`42` })
+
+test(() => unify(r`(?x ?y . ?z)`, r`(1 2 3 4 5)`, {}), {
+  "?x": r`1`,
+  "?y": r`2`,
+  "?z": r`(3 4 5)`,
+})
+
+test(() => unify(r`(() ??y ??y)`, r`(() (2 3) ??z)`, {}), {
+  "??y": r`(2 3)`,
+  "??z": r`(2 3)`,
+})
+
+test(() => unify(r`(() ??y ??y)`, r`(() ??z (2 3))`, {}), {
+  "??y": r`??z`,
+  "??z": r`(2 3)`,
+})
+
+test(() => unify(r`((?a . ?x) (?b . ?y))`, r`((1 3) (2 4))`, {}), {
+  "?a": r`1`,
+  "?x": r`(3)`,
+  "?b": r`2`,
+  "?y": r`(4)`,
+})
+
+test(() => unify(r`()`, r`(1)`, {}), null)
+
+test(() => unify(r`?x`, r`(?x)`, {}), null)
+test(() => unify(r`?x`, r`42`, { "?x": r`42` }), { "?x": r`42` })
+test(() => unify(r`?x`, r`?y`, { "?y": r`42` }), { "?y": r`42`, "?x": r`42` })
+test(() => unify(r`()`, r`()`, {}), {})
+test(() => unify(r`foo`, r`42`, {}), null)
+
+test(() => unify(r`?x`, r`?y`, {}), { "?x": r`?y` })
+
+// simple queries
+let db = read(`
+(
+  ((creator "clojure" ("Rich" "Hickey")))
+  ((creator "lisp" ("John" "McCarthy")))
+  ((creator "c" ("Dennis" "Ritchie")))
+  ((creator "apl" ("Kenneth" "Iverson")))
+  ((created "clojure" 2007))
+  ((created "c" 1972))
+  ((created "lisp" 1960))
+  ((influenced "lisp" "clojure"))
+
+  (
+    (old ??lang ??year)
+    (created ??source ??year)
+    (influenced ??source ??lang))
+)
+  `)
+
+// query
+test(
+  () => query(r`(creator "clojure" ?person)`, db),
+  [
+    {
+      "?person": r`("Rich" "Hickey")`,
+    },
+    null,
+  ],
+)
+
+test(
+  () => query(r`(created "clojure" ?year)`, db),
+  [
+    {
+      "?year": r`2007`,
+    },
+    null,
+  ],
+)
+
+test(
+  () =>
+    query(r`(AND (creator ?lang ("Rich" "Hickey")) (created ?lang ?year))`, db),
+  [
+    {
+      "?lang": r`"clojure"`,
+      "?year": r`2007`,
+    },
+    null,
+  ],
+)
+
+test(() => query(r`(< 2 3)`, db), [{}, null])
+
+test(
+  () => query(r`(old ?lang ?year)`, db),
+  [{ "?lang": r`"clojure"`, "?year": r`1960` }, null],
+)
+
+// merge
+db = read(`
+(
+  (
+    (merge () ?y ?y))
+
+  (
+    (merge ?x () ?x))
+
+  (
+    (merge (?a . ?x) (?b . ?y) (?a . ?z))
+    (merge ?x (?b . ?y) ?z)
+    (< ?a ?b))
+
+  (
+    (merge (?a . ?x) (?b . ?y) (?b . ?z))
+    (merge (?a . ?x) ?y ?z)
+    (< ?b ?a))
+)
+`)
+
+test(() => query(r`(merge () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
+// test(() => query(r`(merge () ?r (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+
+// test(() => query(r`(merge ?r () (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+// test(() => query(r`(merge (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
+
+// test(() => query(r`(merge (1) (2 3) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
+// test(() => query(r`(merge (1 2) (3 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+
+// test(() => query(r`(merge (1 3) (2) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
+// test(() => query(r`(merge (1 3) (2 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+
+// test(() => query(r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
+// test(() => query(r`(merge (1 3) ?r (1 2 3 4))`, db), [{ "?r": r`(2 4)` }, null])
