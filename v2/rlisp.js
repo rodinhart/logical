@@ -401,13 +401,40 @@ test(
 
 // append
 
-db = `(
+db = read(`(
   (
     (append () ?y ?y))
 
   (
     (append (?a . ?x) ?y (?a . ?z))
     (append ?x ?y ?z))
-)`
+ )`)
 
-// todo write tests for append
+test(() => query(r`(append () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(() => query(r`(append (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(
+  () => query(r`(append (1 2) (3 4) ?r)`, db),
+  [{ "?r": r`(1 2 3 4)` }, null],
+)
+test(
+  () => query(r`(append (1 2) ?r (1 2 3 4))`, db),
+  [{ "?r": r`(3 4)` }, null],
+)
+test(
+  () => query(r`(append ?r (3 4) (1 2 3 4))`, db),
+  [{ "?r": r`(1 2)` }, null],
+)
+
+test(
+  () => query(r`(append ?x ?y (1 2 3))`, db),
+  [
+    { "?x": null, "?y": r`(1 2 3)` },
+    [
+      { "?x": r`(1)`, "?y": r`(2 3)` },
+      [
+        { "?x": r`(1 2)`, "?y": r`(3)` },
+        [{ "?x": r`(1 2 3)`, "?y": r`()` }, null],
+      ],
+    ],
+  ],
+)
