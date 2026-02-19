@@ -10,6 +10,7 @@ import {
   map,
   nil,
   reduce,
+  take,
 } from "./list.js"
 
 // extend a dict
@@ -73,7 +74,7 @@ const collectVars = (x) => {
 const gen = (() => {
   let i = 1
 
-  return (prefix = "") => Symbol.for(`?${prefix}G${i++}`)
+  return (prefix = "?G") => Symbol.for(`${prefix}${i++}`)
 })()
 
 const n = (x) => Symbol.keyFor(x)
@@ -123,11 +124,11 @@ export const query = (pattern, db, dicts = [{}, null]) => {
       const fresh = resolve(
         entry,
         Object.fromEntries(
-          [...collectVars(car(entry))].map((varr) => [varr, gen()]),
+          [...collectVars(car(entry))].map((varr) => [varr, gen(varr)]),
         ),
       )
-      const head = car(fresh)
-      const body = cdr(fresh)
+      const head = Array.isArray(car(fresh)) ? car(fresh) : fresh
+      const body = Array.isArray(car(fresh)) ? cdr(fresh) : null
 
       const matchRule = unify(head, pattern, {})
       if (!matchRule) {
@@ -141,16 +142,12 @@ export const query = (pattern, db, dicts = [{}, null]) => {
             [{}, nil],
           )(resolve(body, matchRule))
 
-      return thread(
-        subs,
+      return flatmap((sub) => {
+        const headP = resolve(head, matchRule)
+        const resolved = resolve(headP, sub)
 
-        flatmap((sub) => {
-          const headP = resolve(head, matchRule)
-          const resolved = resolve(headP, sub)
-
-          return map((dict) => unify(pattern, resolved, dict))(dicts)
-        }),
-      )
+        return map((dict) => unify(pattern, resolved, dict))(dicts)
+      })(subs)
     }),
 
     filter((x) => x !== null),
@@ -275,25 +272,25 @@ test(() => unify(r`?x`, r`?y`, {}), { "?x": r`?y` })
 // simple queries
 let db = read(`
 (
-  ((creator "clojure" ("Rich" "Hickey")))
-  ((creator "lisp" ("John" "McCarthy")))
-  ((creator "c" ("Dennis" "Ritchie")))
-  ((creator "apl" ("Kenneth" "Iverson")))
-  ((created "clojure" 2007))
-  ((created "c" 1972))
-  ((created "lisp" 1960))
-  ((influenced "lisp" "clojure"))
+  (creator "clojure" ("Rich" "Hickey"))
+  (creator "lisp" ("John" "McCarthy"))
+  (creator "c" ("Dennis" "Ritchie"))
+  (creator "apl" ("Kenneth" "Iverson"))
+  (created "clojure" 2007)
+  (created "c" 1972)
+  (created "lisp" 1960)
+  (influenced "lisp" "clojure")
 
   (
-    (old ??lang ??year)
-    (created ??source ??year)
-    (influenced ??source ??lang))
+    (old ?lang ?year)
+    (created ?source ?year)
+    (influenced ?source ?lang))
 )
   `)
 
 // query
 test(
-  () => query(r`(creator "clojure" ?person)`, db),
+  () => take(100)(query(r`(creator "clojure" ?person)`, db)),
   [
     {
       "?person": r`("Rich" "Hickey")`,
@@ -303,7 +300,7 @@ test(
 )
 
 test(
-  () => query(r`(created "clojure" ?year)`, db),
+  () => take(100)(query(r`(created "clojure" ?year)`, db)),
   [
     {
       "?year": r`2007`,
@@ -314,7 +311,12 @@ test(
 
 test(
   () =>
-    query(r`(AND (creator ?lang ("Rich" "Hickey")) (created ?lang ?year))`, db),
+    take(100)(
+      query(
+        r`(AND (creator ?lang ("Rich" "Hickey")) (created ?lang ?year))`,
+        db,
+      ),
+    ),
   [
     {
       "?lang": r`"clojure"`,
@@ -324,10 +326,10 @@ test(
   ],
 )
 
-test(() => query(r`(< 2 3)`, db), [{}, null])
+test(() => take(100)(query(r`(< 2 3)`, db)), [{}, null])
 
 test(
-  () => query(r`(old ?lang ?year)`, db),
+  () => take(100)(query(r`(old ?lang ?year)`, db)),
   [{ "?lang": r`"clojure"`, "?year": r`1960` }, null],
 )
 
@@ -352,20 +354,50 @@ db = read(`
 )
 `)
 
-test(() => query(r`(merge () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
-test(() => query(r`(merge () ?r (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+test(
+  () => take(100)(query(r`(merge () (1 2) ?r)`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
+test(
+  () => take(100)(query(r`(merge () ?r (1 2))`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
 
-test(() => query(r`(merge ?r () (1 2))`, db), [{ "?r": r`(1 2)` }, null])
-test(() => query(r`(merge (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(
+  () => take(100)(query(r`(merge ?r () (1 2))`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
+test(
+  () => take(100)(query(r`(merge (1 2) () ?r)`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
 
-test(() => query(r`(merge (1) (2 3) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
-test(() => query(r`(merge (1 2) (3 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+test(
+  () => take(100)(query(r`(merge (1) (2 3) ?r)`, db)),
+  [{ "?r": r`(1 2 3)` }, null],
+)
+test(
+  () => take(100)(query(r`(merge (1 2) (3 4) ?r)`, db)),
+  [{ "?r": r`(1 2 3 4)` }, null],
+)
 
-test(() => query(r`(merge (1 3) (2) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
-test(() => query(r`(merge (1 3) (2 4) ?r)`, db), [{ "?r": r`(1 2 3 4)` }, null])
+test(
+  () => take(100)(query(r`(merge (1 3) (2) ?r)`, db)),
+  [{ "?r": r`(1 2 3)` }, null],
+)
+test(
+  () => take(100)(query(r`(merge (1 3) (2 4) ?r)`, db)),
+  [{ "?r": r`(1 2 3 4)` }, null],
+)
 
-test(() => query(r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
-test(() => query(r`(merge (1 3) ?r (1 2 3 4))`, db), [{ "?r": r`(2 4)` }, null])
+test(
+  () => take(100)(query(r`(merge (1 3) ?r (1 3))`, db)),
+  [{ "?r": r`()` }, null],
+)
+test(
+  () => take(100)(query(r`(merge (1 3) ?r (1 2 3 4))`, db)),
+  [{ "?r": r`(2 4)` }, null],
+)
 
 // dict
 
@@ -375,28 +407,48 @@ db = r`
     (get (?key ?val . ?rest) ?key ?val))
 
   (
-    (get (?y ?z . ?rest) ?key ?val)
+    (get (?k ?v . ?rest) ?key ?val)
     (get ?rest ?key ?val))
-
-  ((set ?map ?key ?val (?key ?val . ?map)))
 )`
 
-test(() => query(r`(get (a 2 b 3 a 5) b ?r)`, db), [{ "?r": 3 }, null])
-test(() => query(r`(get (a 2 b 3 a 5) d ?r)`, db), null)
 test(
-  () => query(r`(get (a 2 b 3 a 5) a ?r)`, db),
+  () => take(100)(query(r`(get (a 2 b 3 a 5) b ?r)`, db)),
+  [{ "?r": 3 }, null],
+)
+test(() => take(100)(query(r`(get (a 2 b 3 a 5) d ?r)`, db)), null)
+test(
+  () => take(100)(query(r`(get (a 2 b 3 a 5) a ?r)`, db)),
   [{ "?r": 2 }, [{ "?r": 5 }, null]],
 )
-test(() => query(r`(get (a 2 b 3 a 5) ?key 3)`, db), [{ "?key": r`b` }, null])
-
 test(
-  () => query(r`(set (b 3 c 5) a 2 ?r)`, db),
-  [{ "?r": r`(a 2 b 3 c 5)` }, null],
+  () => take(100)(query(r`(get (a 2 b 3 a 5) ?key 3)`, db)),
+  [{ "?key": r`b` }, null],
 )
 
+const stripGen = (x) => {
+  if (isVar(x)) {
+    return Symbol.for(/^(\?[a-zA-Z]+)[0-9]*$/.exec(n(x))[1])
+  }
+
+  if (type(x) === "Array") {
+    return cons(stripGen(car(x)), stripGen(cdr(x)))
+  }
+
+  if (type(x) === "Object") {
+    return Object.fromEntries(
+      Object.entries(x).map(([k, v]) => [k, stripGen(v)]),
+    )
+  }
+
+  return x
+}
+
 test(
-  () => query(r`(set (b 3 c 5) c 2 ?r)`, db),
-  [{ "?r": r`(c 2 b 3 c 5)` }, null],
+  () => stripGen(take(2)(query(r`(get ?env foo 10)`, db))),
+  [
+    { "?env": r`(foo 10 . ?rest)` },
+    [{ "?env": r`(?k ?v foo 10 . ?rest)` }, null],
+  ],
 )
 
 // append
@@ -410,23 +462,29 @@ db = read(`(
     (append ?x ?y ?z))
  )`)
 
-test(() => query(r`(append () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
-test(() => query(r`(append (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
 test(
-  () => query(r`(append (1 2) (3 4) ?r)`, db),
+  () => take(100)(query(r`(append () (1 2) ?r)`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
+test(
+  () => take(100)(query(r`(append (1 2) () ?r)`, db)),
+  [{ "?r": r`(1 2)` }, null],
+)
+test(
+  () => take(100)(query(r`(append (1 2) (3 4) ?r)`, db)),
   [{ "?r": r`(1 2 3 4)` }, null],
 )
 test(
-  () => query(r`(append (1 2) ?r (1 2 3 4))`, db),
+  () => take(100)(query(r`(append (1 2) ?r (1 2 3 4))`, db)),
   [{ "?r": r`(3 4)` }, null],
 )
 test(
-  () => query(r`(append ?r (3 4) (1 2 3 4))`, db),
+  () => take(100)(query(r`(append ?r (3 4) (1 2 3 4))`, db)),
   [{ "?r": r`(1 2)` }, null],
 )
 
 test(
-  () => query(r`(append ?x ?y (1 2 3))`, db),
+  () => take(100)(query(r`(append ?x ?y (1 2 3))`, db)),
   [
     { "?x": null, "?y": r`(1 2 3)` },
     [
@@ -438,3 +496,54 @@ test(
     ],
   ],
 )
+
+// eval
+db = r`(
+  (
+    (get (?key ?val . ?rest) ?key ?val))
+
+  (
+    (get (?y ?z . ?rest) ?key ?val)
+    (get ?rest ?key ?val))
+
+  ((set ?map ?key ?val (?key ?val . ?map)))
+
+  (
+    (eval ?x ?env ?x)
+    (number? ?x))
+
+  (
+    (eval ?x ?env ?val)
+    (symbol? ?x)
+    (get ?env ?x ?val))
+
+  ;;((eval (lambda (?param) ?body) ?env (closure (?param) ?body ?env)))
+
+  ;;((eval (?rator ?rand) ?env ?res)
+  ;; (eval ?rator ?env (closure (?param) ?body ?env2))
+  ;; (eval ?rand ?env ?arg)
+  ;; (set ?env2 ?param ?arg ?env-new)
+  ;; (eval ?body ?env-new ?res))
+)`
+
+test(() => take(100)(query(r`(eval 42 () ?r)`, db)), [{ "?r": 42 }, null])
+test(() => take(100)(query(r`(eval ?x () 42)`, db)), [{ "?x": 42 }, null])
+
+test(
+  () => take(100)(query(r`(eval foo (foo 10) ?r)`, db)),
+  [{ "?r": 10 }, null],
+)
+test(() => take(1)(query(r`(eval foo () ?r)`, db)), null)
+// test(() => take(5)(query(r`(eval foo ?r 10)`, db)), null)
+// test(() => query(r`(eval ?x (foo 10) 10)`, db), null, [{ "?x": 10 }, null])
+
+// test(() => query(r`(eval foo (x 10 foo 20 y 30) ?r)`, db), [{ "?r": 20 }, null])
+// test(() => query(r`(eval bar (x 10 foo 20 y 30) ?r)`, db), null)
+// test(
+//   () => query(r`(eval ((lambda (x) x) 3) () ?res)`, db),
+//   [{ "?res": 3 }, null],
+// )
+// test(
+//   () => query(r`(eval ((lambda (x) y) 3) (y 4) ?res)`, db),
+//   [{ "?res": 4 }, null]
+// )

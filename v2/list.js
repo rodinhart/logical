@@ -2,7 +2,7 @@ import { test } from "./lang.js"
 
 // append two lists
 export const append = (xs, ys) =>
-  isEmpty(xs) ? ys : cons(xs[0], append(xs[1], ys))
+  isEmpty(xs) ? ys : cons(car(xs), () => append(cdr(xs), ys))
 
 export const car = (xs) => xs[0]
 
@@ -21,12 +21,27 @@ export const filter = (p) => (xs) =>
   isEmpty(xs)
     ? nil
     : p(car(xs))
-      ? cons(car(xs), filter(p)(cdr(xs)))
+      ? cons(car(xs), () => filter(p)(cdr(xs)))
       : filter(p)(cdr(xs))
 
 // flatmap over list
-export const flatmap = (f) => (xs) =>
-  isEmpty(xs) ? nil : append(f(car(xs)), flatmap(f)(cdr(xs)))
+export const flatmap = (f) => (xs) => cat(map(f)(xs))
+
+const cat = (xs, ys = nil, zs = nil) => {
+  if (!isEmpty(ys)) {
+    return cons(car(ys), () => cat(xs, cdr(ys), zs))
+  }
+
+  if (!isEmpty(zs)) {
+    return cat(cdr(zs))
+  }
+
+  if (!isEmpty(xs)) {
+    return cat(xs, car(xs), xs)
+  }
+
+  return nil
+}
 
 export const isEmpty = (xs) => !Array.isArray(xs)
 
@@ -44,7 +59,7 @@ export const list = (xs) => {
 
 // map over list
 export const map = (f) => (xs) =>
-  isEmpty(xs) ? nil : cons(f(car(xs)), map(f)(cdr(xs)))
+  isEmpty(xs) ? nil : cons(f(car(xs)), () => map(f)(cdr(xs)))
 
 export const nil = null
 
@@ -54,11 +69,22 @@ export const reduce = (rf, init) => (xs) =>
 export const take = (n) => (xs) =>
   n > 0 && !isEmpty(xs) ? cons(car(xs), take(n - 1)(cdr(xs))) : nil
 
+const ones = cons(1, () => ones)
+
 // tests
 test(() => append(list(1, 2, 3), list(4, 5, 6)), list(1, 2, 3, 4, 5, 6))
 
 test(() => flatmap((x) => list([x, x]))(list(1, 2, 3)), list(1, 1, 2, 2, 3, 3))
 
-test(() => map((x) => x * 2)(list([1, 2, 3])), list([2, 4, 6]))
-test(() => filter((x) => x % 2 === 0)(list([1, 2, 3, 4])), list([2, 4]))
+test(() => take(100)(map((x) => x * 2)(list([1, 2, 3]))), list([2, 4, 6]))
+test(
+  () => take(100)(filter((x) => x % 2 === 0)(list([1, 2, 3, 4]))),
+  list([2, 4]),
+)
 test(() => reduce((acc, x) => acc + x, 0)(list([1, 2, 3, 4])), 10)
+
+test(() => take(2)(list([1, 2, 3, 4])), list([1, 2]))
+test(() => take(0)(list([1, 2, 3, 4])), nil)
+test(() => take(10)(list([1, 2, 3])), list([1, 2, 3]))
+
+test(() => take(5)(flatmap(() => ones)(ones)), list([1, 1, 1, 1, 1]))
