@@ -45,8 +45,6 @@ const cat = (xs, ys = nil, zs = nil) => {
 
 export const isEmpty = (xs) => !Array.isArray(xs)
 
-export const length = (xs) => (isEmpty(xs) ? 0 : 1 + length(cdr(xs)))
-
 // array to linked list
 export const list = (xs) => {
   let r = nil
