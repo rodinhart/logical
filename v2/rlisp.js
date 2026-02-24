@@ -13,6 +13,8 @@ import {
   take,
 } from "./list.js"
 
+let debug = -1
+
 // extend a dict
 const extend = (varr, val, dict) => {
   if (n(varr) in dict) {
@@ -45,7 +47,7 @@ const extend = (varr, val, dict) => {
   }
 
   if (depends(val)) {
-    console.log("CIRCULAR", val)
+    // console.log("CIRCULAR", val)
 
     return null
   }
@@ -80,15 +82,22 @@ const gen = (() => {
 const n = (x) => Symbol.keyFor(x)
 
 // query the db
-export const query = (pattern, db, dicts = [{}, null]) => {
+export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
   if (!dicts) {
     return null
   }
 
-  if (pattern[0] === Symbol.for("AND")) {
-    const t = query(car(cdr(pattern)), db, dicts)
+  if (debug > 0) {
+    console.log(prn(pattern))
+    debug--
+  } else if (debug === 0) {
+    throw new Error("Prevent")
+  }
 
-    return query(car(cdr(cdr(pattern))), db, t)
+  if (pattern[0] === Symbol.for("AND")) {
+    const t = query(car(cdr(pattern)), db, dicts, depth)
+
+    return query(car(cdr(cdr(pattern))), db, t, depth)
   }
 
   const hostOps = {
@@ -137,10 +146,12 @@ export const query = (pattern, db, dicts = [{}, null]) => {
 
       const subs = isEmpty(body)
         ? cons(matchRule, nil)
-        : reduce(
-            (r, clause) => query(clause, db, r),
-            [{}, nil],
-          )(resolve(body, matchRule))
+        : depth < 10
+          ? reduce(
+              (r, clause) => query(clause, db, r, depth + 1),
+              [{}, nil],
+            )(resolve(body, matchRule))
+          : nil
 
       return flatmap((sub) => {
         const headP = resolve(head, matchRule)
@@ -503,10 +514,8 @@ db = r`(
     (get (?key ?val . ?rest) ?key ?val))
 
   (
-    (get (?y ?z . ?rest) ?key ?val)
+    (get (?k ?v . ?rest) ?key ?val)
     (get ?rest ?key ?val))
-
-  ((set ?map ?key ?val (?key ?val . ?map)))
 
   (
     (eval ?x ?env ?x)
@@ -517,32 +526,45 @@ db = r`(
     (symbol? ?x)
     (get ?env ?x ?val))
 
-  ;;((eval (lambda (?param) ?body) ?env (closure (?param) ?body ?env)))
+  ((eval (lambda (?param) ?body) ?env (closure (?param) ?body ?env)))
 
-  ;;((eval (?rator ?rand) ?env ?res)
-  ;; (eval ?rator ?env (closure (?param) ?body ?env2))
-  ;; (eval ?rand ?env ?arg)
-  ;; (set ?env2 ?param ?arg ?env-new)
-  ;; (eval ?body ?env-new ?res))
+  ((eval (?rator ?rand) ?env ?res)
+   (eval ?rator ?env (closure (?param) ?body ?env2))
+   (eval ?rand ?env ?arg)
+   (get ?env-new ?param ?arg)
+   (eval ?body ?env-new ?res)
+  )
 )`
 
 test(() => take(100)(query(r`(eval 42 () ?r)`, db)), [{ "?r": 42 }, null])
-test(() => take(100)(query(r`(eval ?x () 42)`, db)), [{ "?x": 42 }, null])
-
+// debug = 30
 test(
-  () => take(100)(query(r`(eval foo (foo 10) ?r)`, db)),
-  [{ "?r": 10 }, null],
+  () => stripGen(take(2)(query(r`(eval ?x () 42)`, db))),
+  [
+    { "?x": 42 },
+    [{ "?x": r`((lambda (?param) 42) (lambda (?param) ?body))` }, null],
+  ],
 )
-test(() => take(1)(query(r`(eval foo () ?r)`, db)), null)
-// test(() => take(5)(query(r`(eval foo ?r 10)`, db)), null)
-// test(() => query(r`(eval ?x (foo 10) 10)`, db), null, [{ "?x": 10 }, null])
 
-// test(() => query(r`(eval foo (x 10 foo 20 y 30) ?r)`, db), [{ "?r": 20 }, null])
-// test(() => query(r`(eval bar (x 10 foo 20 y 30) ?r)`, db), null)
 // test(
-//   () => query(r`(eval ((lambda (x) x) 3) () ?res)`, db),
-//   [{ "?res": 3 }, null],
+//   () => take(100)(query(r`(eval foo (foo 10) ?r)`, db)),
+//   [{ "?r": 10 }, null],
 // )
+// test(() => take(1)(query(r`(eval foo () ?r)`, db)), null)
+// test(
+//   () => stripGen(take(1)(query(r`(eval foo ?r 10)`, db))),
+//   [{ "?r": r`(foo 10 . ?rest)` }, null],
+// )
+// test(
+//   () => take(2)(query(r`(eval ?x (foo 10) 10)`, db)),
+//   [{ "?x": 10 }, [{ "?x": r`foo` }, null]],
+// ) // could be take 3
+
+// test(
+//   () => take(1)(query(r`(eval ((lambda (x) x) 3) () ?r)`, db)),
+//   [{ "?r": 3 }, null],
+// )
+
 // test(
 //   () => query(r`(eval ((lambda (x) y) 3) (y 4) ?res)`, db),
 //   [{ "?res": 4 }, null]
