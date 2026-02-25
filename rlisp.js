@@ -10,6 +10,7 @@ import {
   map,
   nil,
   reduce,
+  take,
 } from "./list.js"
 
 let debug = -1
@@ -199,3 +200,5 @@ export const unify = (pattern, entry, dict) => {
 
   return null
 }
+
+export const run = (n, pattern, db) => take(n)(query(pattern, db))

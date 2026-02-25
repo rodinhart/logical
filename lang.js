@@ -43,8 +43,7 @@ export const test = (script, expected) => {
     )
   }
 }
-
-test.prn = (x) => x
+test.prn = (x) => String(x)
 
 export const thread = (x, ...fns) => fns.reduce((r, fn) => fn(r), x)
 

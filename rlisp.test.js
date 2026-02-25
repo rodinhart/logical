@@ -1,7 +1,7 @@
 import { test, type } from "./lang.js"
 import { r, read } from "./lisp.js"
 import { car, cdr, cons, take } from "./list.js"
-import { collectVars, isVar, n, query, resolve, unify } from "./rlisp.js"
+import { collectVars, isVar, n, query, resolve, run, unify } from "./rlisp.js"
 
 // collect vars
 test(() => collectVars(r`?x`), new Set(["?x"]))
@@ -222,17 +222,14 @@ db = r`
     (get ?rest ?key ?val))
 )`
 
+test(() => run(100, r`(get (a 2 b 3 a 5) b ?r)`, db), [{ "?r": 3 }, null])
+test(() => run(100, r`(get (a 2 b 3 a 5) d ?r)`, db), null)
 test(
-  () => take(100)(query(r`(get (a 2 b 3 a 5) b ?r)`, db)),
-  [{ "?r": 3 }, null],
-)
-test(() => take(100)(query(r`(get (a 2 b 3 a 5) d ?r)`, db)), null)
-test(
-  () => take(100)(query(r`(get (a 2 b 3 a 5) a ?r)`, db)),
+  () => run(100, r`(get (a 2 b 3 a 5) a ?r)`, db),
   [{ "?r": 2 }, [{ "?r": 5 }, null]],
 )
 test(
-  () => take(100)(query(r`(get (a 2 b 3 a 5) ?key 3)`, db)),
+  () => run(100, r`(get (a 2 b 3 a 5) ?key 3)`, db),
   [{ "?key": r`b` }, null],
 )
 
@@ -255,7 +252,7 @@ const stripGen = (x) => {
 }
 
 test(
-  () => stripGen(take(2)(query(r`(get ?env foo 10)`, db))),
+  () => stripGen(run(2, r`(get ?env foo 10)`, db)),
   [
     { "?env": r`(foo 10 . ?rest)` },
     [{ "?env": r`(?k ?v foo 10 . ?rest)` }, null],
