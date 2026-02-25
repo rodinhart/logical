@@ -1,7 +1,7 @@
 import { test, type } from "./lang.js"
 import { r, read } from "./lisp.js"
-import { car, cdr, cons, take } from "./list.js"
-import { collectVars, isVar, n, query, resolve, run, unify } from "./rlisp.js"
+import { car, cdr, cons } from "./list.js"
+import { collectVars, isVar, name, resolve, run, unify } from "./rlisp.js"
 
 // collect vars
 test(() => collectVars(r`?x`), new Set(["?x"]))
@@ -213,7 +213,7 @@ test(
 
 const stripGen = (x) => {
   if (isVar(x)) {
-    return Symbol.for(/^(\?[a-zA-Z]+)[0-9]*$/.exec(n(x))[1])
+    return Symbol.for(/^(\?[a-zA-Z]+)[0-9]*$/.exec(name(x))[1])
   }
 
   if (type(x) === "Array") {
@@ -298,7 +298,7 @@ db = r`(
   ((eval (lambda (?param) ?body) ?env (closure (?param) ?body ?env)))
 
   ((eval (?rator ?rand) ?env ?res)
-   (eval ?rator ?env (closure (?param) ?body ?env2))
+   (eval ?rator ?env2 (closure (?param) ?body ?env2))
    (eval ?rand ?env ?arg)
    (get ?env-new ?param ?arg)
    (eval ?body ?env-new ?res)
@@ -306,7 +306,6 @@ db = r`(
 )`
 
 test(() => run(100, r`(eval 42 () ?r)`, db), [{ "?r": 42 }, null])
-// debug = 30
 test(
   () => stripGen(run(2, r`(eval ?x () 42)`, db)),
   [
@@ -315,24 +314,17 @@ test(
   ],
 )
 
-// test(
-//   () => (run(100,r`(eval foo (foo 10) ?r)`, db)),
-//   [{ "?r": 10 }, null],
-// )
-// test(() => (run(1, r`(eval foo () ?r)`, db)), null)
-// test(
-//   () => stripGen((run(1, r`(eval foo ?r 10)`, db))),
-//   [{ "?r": r`(foo 10 . ?rest)` }, null],
-// )
-// test(
-//   () => (run(2, r`(eval ?x (foo 10) 10)`, db)),
-//   [{ "?x": 10 }, [{ "?x": r`foo` }, null]],
-// ) // could be take 3
+test(
+  () => stripGen(run(1, r`(eval foo ?r 10)`, db)),
+  [{ "?r": r`(foo 10 . ?rest)` }, null],
+)
+
+// test(() => run(1, r`(eval ((lambda (x) x) 3) () ?r)`, db), [{ "?r": 3 }, null])
 
 // test(
-//   () => (run(1, r`(eval ((lambda (x) x) 3) () ?r)`, db)),
-//   [{ "?r": 3 }, null],
-// )
+//   () => run(2, r`(eval ?x (foo 10) 10)`, db),
+//   [{ "?x": 10 }, [{ "?x": r`foo` }, null]],
+// ) // could be take 3
 
 // test(
 //   () => query(r`(eval ((lambda (x) y) 3) (y 4) ?res)`, db),

@@ -13,16 +13,14 @@ import {
   take,
 } from "./list.js"
 
-let debug = -1
-
 // extend a dict
 const extend = (varr, val, dict) => {
-  if (n(varr) in dict) {
-    return unify(dict[n(varr)], val, dict)
+  if (name(varr) in dict) {
+    return unify(dict[name(varr)], val, dict)
   }
 
-  if (isVar(val) && n(val) in dict) {
-    return unify(varr, dict[n(val)], dict)
+  if (isVar(val) && name(val) in dict) {
+    return unify(varr, dict[name(val)], dict)
   }
 
   // check depends
@@ -32,8 +30,8 @@ const extend = (varr, val, dict) => {
     }
 
     if (isVar(exp)) {
-      if (n(exp) in dict) {
-        return depends(dict[n(exp)])
+      if (name(exp) in dict) {
+        return depends(dict[name(exp)])
       } else {
         return false
       }
@@ -54,7 +52,7 @@ const extend = (varr, val, dict) => {
 
   return {
     ...dict,
-    [n(varr)]: val,
+    [name(varr)]: val,
   }
 }
 
@@ -79,19 +77,13 @@ const gen = (() => {
   return (prefix = "?G") => Symbol.for(`${prefix}${i++}`)
 })()
 
-export const n = (x) => Symbol.keyFor(x)
+// name for a symbol
+export const name = (x) => Symbol.keyFor(x)
 
 // query the db
 export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
   if (!dicts) {
     return null
-  }
-
-  if (debug > 0) {
-    console.log(prn(pattern))
-    debug--
-  } else if (debug === 0) {
-    throw new Error("Prevent")
   }
 
   if (pattern[0] === Symbol.for("AND")) {
@@ -170,8 +162,8 @@ export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
 
 // resolve var to values
 export const resolve = (pattern, dict) => {
-  if (isVar(pattern) && n(pattern) in dict) {
-    return resolve(dict[n(pattern)], dict)
+  if (isVar(pattern) && name(pattern) in dict) {
+    return resolve(dict[name(pattern)], dict)
   }
 
   if (type(pattern) === "Array") {
@@ -204,4 +196,5 @@ export const unify = (pattern, entry, dict) => {
   return null
 }
 
+// return first n results from query
 export const run = (n, pattern, db) => take(n, query(pattern, db))
