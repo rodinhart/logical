@@ -1,4 +1,4 @@
-// clear; ..\..\deno.exe run --allow-read .\main.js
+// clear; ..\deno.exe run --allow-read .\main.js
 
 import { prn, r, read } from "./lisp.js"
 import { car, cdr, isEmpty } from "./list.js"

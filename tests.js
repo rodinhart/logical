@@ -1,4 +1,4 @@
-// clear; ..\..\deno.exe run --allow-read .\tests.js
+// clear; ..\deno.exe run --allow-read .\tests.js
 
 import {} from "./lang.test.js"
 import {} from "./list.test.js"
