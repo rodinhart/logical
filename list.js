@@ -15,15 +15,15 @@ export const cdr = (xs) => {
 export const cons = (x, y) => [x, y]
 
 // filter a list
-export const filter = (p) => (xs) =>
+export const filter = (p, xs) =>
   isEmpty(xs)
     ? nil
     : p(car(xs))
-      ? cons(car(xs), () => filter(p)(cdr(xs)))
-      : filter(p)(cdr(xs))
+      ? cons(car(xs), () => filter(p, cdr(xs)))
+      : filter(p, cdr(xs))
 
 // flatmap over list
-export const flatmap = (f) => (xs) => cat(map(f)(xs))
+export const flatmap = (f, xs) => cat(map(f, xs))
 
 const cat = (xs, ys = nil, zs = nil) => {
   if (!isEmpty(ys)) {
@@ -54,15 +54,15 @@ export const list = (xs) => {
 }
 
 // map over list
-export const map = (f) => (xs) =>
-  isEmpty(xs) ? nil : cons(f(car(xs)), () => map(f)(cdr(xs)))
+export const map = (f, xs) =>
+  isEmpty(xs) ? nil : cons(f(car(xs)), () => map(f, cdr(xs)))
 
 export const nil = null
 
-export const reduce = (rf, init) => (xs) =>
-  isEmpty(xs) ? init : reduce(rf, rf(init, car(xs)))(cdr(xs))
+export const reduce = (rf, init, xs) =>
+  isEmpty(xs) ? init : reduce(rf, rf(init, car(xs)), cdr(xs))
 
-export const take = (n) => (xs) =>
-  n > 0 && !isEmpty(xs) ? cons(car(xs), take(n - 1)(cdr(xs))) : nil
+export const take = (n, xs) =>
+  n > 0 && !isEmpty(xs) ? cons(car(xs), take(n - 1, cdr(xs))) : nil
 
 export const ones = cons(1, () => ones)

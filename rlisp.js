@@ -116,52 +116,55 @@ export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
     return thread(
       dicts,
 
-      map((dict) => {
-        const t = resolve(pattern, dict)
+      (xs) =>
+        map((dict) => {
+          const t = resolve(pattern, dict)
 
-        return hostOps[car(pattern)](t) ? dict : null
-      }),
+          return hostOps[car(pattern)](t) ? dict : null
+        }, xs),
 
-      filter((x) => x !== null),
+      (xs) => filter((x) => x !== null, xs),
     )
   }
 
   return thread(
     db,
 
-    flatmap((entry) => {
-      const fresh = resolve(
-        entry,
-        Object.fromEntries(
-          [...collectVars(car(entry))].map((varr) => [varr, gen(varr)]),
-        ),
-      )
-      const head = Array.isArray(car(fresh)) ? car(fresh) : fresh
-      const body = Array.isArray(car(fresh)) ? cdr(fresh) : null
+    (xs) =>
+      flatmap((entry) => {
+        const fresh = resolve(
+          entry,
+          Object.fromEntries(
+            [...collectVars(car(entry))].map((varr) => [varr, gen(varr)]),
+          ),
+        )
+        const head = Array.isArray(car(fresh)) ? car(fresh) : fresh
+        const body = Array.isArray(car(fresh)) ? cdr(fresh) : null
 
-      const matchRule = unify(head, pattern, {})
-      if (!matchRule) {
-        return null
-      }
+        const matchRule = unify(head, pattern, {})
+        if (!matchRule) {
+          return null
+        }
 
-      const subs = isEmpty(body)
-        ? cons(matchRule, nil)
-        : depth < 10
-          ? reduce(
-              (r, clause) => query(clause, db, r, depth + 1),
-              [{}, nil],
-            )(resolve(body, matchRule))
-          : nil
+        const subs = isEmpty(body)
+          ? cons(matchRule, nil)
+          : depth < 10
+            ? reduce(
+                (r, clause) => query(clause, db, r, depth + 1),
+                [{}, nil],
+                resolve(body, matchRule),
+              )
+            : nil
 
-      return flatmap((sub) => {
-        const headP = resolve(head, matchRule)
-        const resolved = resolve(headP, sub)
+        return flatmap((sub) => {
+          const headP = resolve(head, matchRule)
+          const resolved = resolve(headP, sub)
 
-        return map((dict) => unify(pattern, resolved, dict))(dicts)
-      })(subs)
-    }),
+          return map((dict) => unify(pattern, resolved, dict), dicts)
+        }, subs)
+      }, xs),
 
-    filter((x) => x !== null),
+    (xs) => filter((x) => x !== null, xs),
   )
 }
 
@@ -201,4 +204,4 @@ export const unify = (pattern, entry, dict) => {
   return null
 }
 
-export const run = (n, pattern, db) => take(n)(query(pattern, db))
+export const run = (n, pattern, db) => take(n, query(pattern, db))

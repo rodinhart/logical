@@ -101,7 +101,7 @@ let db = read(`
 
 // query
 test(
-  () => take(100)(query(r`(creator "clojure" ?person)`, db)),
+  () => run(100, r`(creator "clojure" ?person)`, db),
   [
     {
       "?person": r`("Rich" "Hickey")`,
@@ -111,7 +111,7 @@ test(
 )
 
 test(
-  () => take(100)(query(r`(created "clojure" ?year)`, db)),
+  () => run(100, r`(created "clojure" ?year)`, db),
   [
     {
       "?year": r`2007`,
@@ -122,11 +122,10 @@ test(
 
 test(
   () =>
-    take(100)(
-      query(
-        r`(AND (creator ?lang ("Rich" "Hickey")) (created ?lang ?year))`,
-        db,
-      ),
+    run(
+      100,
+      r`(AND (creator ?lang ("Rich" "Hickey")) (created ?lang ?year))`,
+      db,
     ),
   [
     {
@@ -137,10 +136,10 @@ test(
   ],
 )
 
-test(() => take(100)(query(r`(< 2 3)`, db)), [{}, null])
+test(() => run(100, r`(< 2 3)`, db), [{}, null])
 
 test(
-  () => take(100)(query(r`(old ?lang ?year)`, db)),
+  () => run(100, r`(old ?lang ?year)`, db),
   [{ "?lang": r`"clojure"`, "?year": r`1960` }, null],
 )
 
@@ -165,48 +164,27 @@ db = read(`
 )
 `)
 
-test(
-  () => take(100)(query(r`(merge () (1 2) ?r)`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
-test(
-  () => take(100)(query(r`(merge () ?r (1 2))`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
+test(() => run(100, r`(merge () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(() => run(100, r`(merge () ?r (1 2))`, db), [{ "?r": r`(1 2)` }, null])
 
-test(
-  () => take(100)(query(r`(merge ?r () (1 2))`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
-test(
-  () => take(100)(query(r`(merge (1 2) () ?r)`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
+test(() => run(100, r`(merge ?r () (1 2))`, db), [{ "?r": r`(1 2)` }, null])
+test(() => run(100, r`(merge (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
 
+test(() => run(100, r`(merge (1) (2 3) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
 test(
-  () => take(100)(query(r`(merge (1) (2 3) ?r)`, db)),
-  [{ "?r": r`(1 2 3)` }, null],
-)
-test(
-  () => take(100)(query(r`(merge (1 2) (3 4) ?r)`, db)),
+  () => run(100, r`(merge (1 2) (3 4) ?r)`, db),
   [{ "?r": r`(1 2 3 4)` }, null],
 )
 
+test(() => run(100, r`(merge (1 3) (2) ?r)`, db), [{ "?r": r`(1 2 3)` }, null])
 test(
-  () => take(100)(query(r`(merge (1 3) (2) ?r)`, db)),
-  [{ "?r": r`(1 2 3)` }, null],
-)
-test(
-  () => take(100)(query(r`(merge (1 3) (2 4) ?r)`, db)),
+  () => run(100, r`(merge (1 3) (2 4) ?r)`, db),
   [{ "?r": r`(1 2 3 4)` }, null],
 )
 
+test(() => run(100, r`(merge (1 3) ?r (1 3))`, db), [{ "?r": r`()` }, null])
 test(
-  () => take(100)(query(r`(merge (1 3) ?r (1 3))`, db)),
-  [{ "?r": r`()` }, null],
-)
-test(
-  () => take(100)(query(r`(merge (1 3) ?r (1 2 3 4))`, db)),
+  () => run(100, r`(merge (1 3) ?r (1 2 3 4))`, db),
   [{ "?r": r`(2 4)` }, null],
 )
 
@@ -270,29 +248,23 @@ db = read(`(
     (append ?x ?y ?z))
  )`)
 
+test(() => run(100, r`(append () (1 2) ?r)`, db), [{ "?r": r`(1 2)` }, null])
+test(() => run(100, r`(append (1 2) () ?r)`, db), [{ "?r": r`(1 2)` }, null])
 test(
-  () => take(100)(query(r`(append () (1 2) ?r)`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
-test(
-  () => take(100)(query(r`(append (1 2) () ?r)`, db)),
-  [{ "?r": r`(1 2)` }, null],
-)
-test(
-  () => take(100)(query(r`(append (1 2) (3 4) ?r)`, db)),
+  () => run(100, r`(append (1 2) (3 4) ?r)`, db),
   [{ "?r": r`(1 2 3 4)` }, null],
 )
 test(
-  () => take(100)(query(r`(append (1 2) ?r (1 2 3 4))`, db)),
+  () => run(100, r`(append (1 2) ?r (1 2 3 4))`, db),
   [{ "?r": r`(3 4)` }, null],
 )
 test(
-  () => take(100)(query(r`(append ?r (3 4) (1 2 3 4))`, db)),
+  () => run(100, r`(append ?r (3 4) (1 2 3 4))`, db),
   [{ "?r": r`(1 2)` }, null],
 )
 
 test(
-  () => take(100)(query(r`(append ?x ?y (1 2 3))`, db)),
+  () => run(100, r`(append ?x ?y (1 2 3))`, db),
   [
     { "?x": null, "?y": r`(1 2 3)` },
     [
@@ -333,10 +305,10 @@ db = r`(
   )
 )`
 
-test(() => take(100)(query(r`(eval 42 () ?r)`, db)), [{ "?r": 42 }, null])
+test(() => run(100, r`(eval 42 () ?r)`, db), [{ "?r": 42 }, null])
 // debug = 30
 test(
-  () => stripGen(take(2)(query(r`(eval ?x () 42)`, db))),
+  () => stripGen(run(2, r`(eval ?x () 42)`, db)),
   [
     { "?x": 42 },
     [{ "?x": r`((lambda (?param) 42) (lambda (?param) ?body))` }, null],
@@ -344,21 +316,21 @@ test(
 )
 
 // test(
-//   () => take(100)(query(r`(eval foo (foo 10) ?r)`, db)),
+//   () => (run(100,r`(eval foo (foo 10) ?r)`, db)),
 //   [{ "?r": 10 }, null],
 // )
-// test(() => take(1)(query(r`(eval foo () ?r)`, db)), null)
+// test(() => (run(1, r`(eval foo () ?r)`, db)), null)
 // test(
-//   () => stripGen(take(1)(query(r`(eval foo ?r 10)`, db))),
+//   () => stripGen((run(1, r`(eval foo ?r 10)`, db))),
 //   [{ "?r": r`(foo 10 . ?rest)` }, null],
 // )
 // test(
-//   () => take(2)(query(r`(eval ?x (foo 10) 10)`, db)),
+//   () => (run(2, r`(eval ?x (foo 10) 10)`, db)),
 //   [{ "?x": 10 }, [{ "?x": r`foo` }, null]],
 // ) // could be take 3
 
 // test(
-//   () => take(1)(query(r`(eval ((lambda (x) x) 3) () ?r)`, db)),
+//   () => (run(1, r`(eval ((lambda (x) x) 3) () ?r)`, db)),
 //   [{ "?r": 3 }, null],
 // )
 
