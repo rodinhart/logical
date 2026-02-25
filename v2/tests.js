@@ -1,8 +1,6 @@
-import { test } from "./lang.js"
-import { r, read } from "./lisp.js"
-import { append, flatmap, list, take } from "./list.js"
-import { query, resolve, unify } from "./rlisp.js"
+// clear; ..\..\deno.exe run --allow-read .\tests.js
 
-const db = read(Deno.readTextFileSync("./db.clj"))
-
-// interpreter
+import {} from "./lang.test.js"
+import {} from "./list.test.js"
+import {} from "./lisp.test.js"
+import {} from "./rlisp.test.js"
