@@ -157,7 +157,7 @@
 ; (defn map [f xs]
 ;   (if (empty? xs)
 ;     xs
-;     (cons (car xs) (map f (cdr xs)))))
+;     (cons (f (car xs)) (map f (cdr xs)))))
 ```
 
 ```
@@ -193,7 +193,7 @@
  (= (List ?x) ?c)
 
  (type car (?xs) ?car)
- (= ?f ((?car) ?t1))
+ (= ?f ((?car) => ?t1))
 
  (type cdr (?xs) ?cdr)
  (= ?xs ?cdr)
