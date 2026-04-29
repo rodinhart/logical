@@ -66,3 +66,5 @@ export const take = (n, xs) =>
   n > 0 && !isEmpty(xs) ? cons(car(xs), take(n - 1, cdr(xs))) : nil
 
 export const ones = cons(1, () => ones)
+
+export const length = (xs) => (isEmpty(xs) ? 0 : 1 + length(cdr(xs)))

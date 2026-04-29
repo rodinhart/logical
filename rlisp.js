@@ -1,6 +1,7 @@
 import { egal, thread, type } from "./lang.js"
 import { prn } from "./lisp.js"
 import {
+  append,
   car,
   cdr,
   cons,
@@ -92,6 +93,22 @@ export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
     return query(car(cdr(cdr(pattern))), db, t, depth)
   }
 
+  if (pattern[0] === Symbol.for("OR")) {
+    return reduce((r, p) => append(r, query(p, db, dicts, depth)), nil, pattern)
+
+    return append(
+      query(car(cdr(pattern)), db, dicts, depth),
+      query(car(cdr(cdr(pattern))), db, dicts, depth),
+    )
+  }
+
+  if (pattern[0] === Symbol.for("NOT")) {
+    return filter(
+      (dict) => isEmpty(query(car(cdr(pattern)), db, cons(dict, nil), depth)),
+      dicts,
+    )
+  }
+
   const hostOps = {
     [Symbol.for("<")]: (t) =>
       Number.isFinite(car(cdr(t))) &&
@@ -127,7 +144,7 @@ export const query = (pattern, db, dicts = [{}, null], depth = 1) => {
         const fresh = resolve(
           entry,
           Object.fromEntries(
-            [...collectVars(car(entry))].map((varr) => [varr, gen(varr)]),
+            [...collectVars(entry)].map((varr) => [varr, gen(varr)]),
           ),
         )
         const head = Array.isArray(car(fresh)) ? car(fresh) : fresh
